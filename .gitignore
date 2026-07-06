@@ -10,3 +10,7 @@ __pycache__/
 scratch_*.mojo
 test/fuzz_case.xml
 test/fuzz_failures/
+.bench_parse
+docs/api.json
+docs/api.html
+docs/site/

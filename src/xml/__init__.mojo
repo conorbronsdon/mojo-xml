@@ -1,4 +1,4 @@
-"""mojo-xml: general-purpose XML parsing for Mojo (an ElementTree-shaped API)."""
+"""General-purpose XML parsing for Mojo — an ElementTree-shaped API (mojo-xml)."""
 
 from xml.pull import (
     XmlPullParser,
