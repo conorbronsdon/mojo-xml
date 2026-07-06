@@ -1,0 +1,9 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Page &amp; Title</title></head>
+  <body>
+    <h1 id="top">Heading</h1>
+    <p>A paragraph with <a href="/link?a=1&amp;b=2">a link</a> and <em>emphasis</em>, plus a&#160;non-break space and a &#x2014; dash.</p>
+    <ul><li>one</li><li>two</li><li>three</li></ul>
+    <p>Trailing <strong>bold <span>nested</span> text</strong> then a tail.</p>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<records>
+	<record id="1" note="line one
+line two" path="a	b	c">
+		<value>  spaced text  </value>
+	</record>
+	<record id="2"
+	        note="wrapped
+	              attribute"/>
+</records>

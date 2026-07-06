@@ -24,13 +24,38 @@ INTERESTING = [b"<", b">", b"&", b"]]>", b"<!--", b"<![CDATA[", b'"', b"'",
                b"<a>", b"</a>", b"xmlns=", b"xmlns:x=", b"{", b"}",
                b"&amp;", b"&#x110000;", b":", b" ", b"\t"]
 
-# Adversarial synthetic seeds beyond the corpus: deep nesting (stack-overflow
-# bait), wide fan-out, and a namespace bomb.
+# Adversarial synthetic seeds beyond the corpus, one per bug class:
+#   deep nesting (stack-overflow bait), wide fan-out, namespace bombs,
+#   pathological entity/char-ref expansion, malformed UTF-8, huge attribute
+#   counts, oversized single tokens, and comment/CDATA/newline edge cases.
 SYNTH = [
+    # Deep nesting + wide fan-out (tree-walk quadratic / recursion bait).
     (b"<r>" + b"<a>" * 5000 + b"</a>" * 5000 + b"</r>"),
     (b"<r>" + b"<a/>" * 20000 + b"</r>"),
+    # Namespace bombs: many declarations, and one prefix rebound repeatedly.
     (b"<r " + b" ".join(b'xmlns:n%d="u%d"' % (i, i) for i in range(400)) + b"/>"),
+    (b"<r>" + b"".join(b'<n:a xmlns:n="u%d">' % i for i in range(300))
+        + b"</n:a>" * 300 + b"</r>"),
+    # Pathological entity / char-reference expansion.
     (b"<r>" + b"&amp;" * 10000 + b"</r>"),
+    (b"<r>" + b"&#38;" * 8000 + b"&#x2764;" * 2000 + b"</r>"),
+    (b"<r>" + b"&#x110000;" * 5000 + b"&#xD800;" * 5000 + b"</r>"),  # overflow/surrogate
+    (b"<r>" + b"&unknownentity;" * 5000 + b"</r>"),  # unknown -> strict raise
+    # Huge attribute count and one enormous attribute value.
+    (b"<r " + b" ".join(b'a%d="%d"' % (i, i) for i in range(2000)) + b"/>"),
+    (b'<r big="' + b"x" * 100000 + b'"/>'),
+    # Malformed UTF-8 sprinkled through markup and text.
+    (b"<r a=\"\xff\xfe\x80\">te\xc3\x28xt\xed\xa0\x80</r>"),
+    (b"<\xff\xfea>x</\xff\xfea>"),
+    # Comment / CDATA / PI edge cases.
+    (b"<r><!--" + b"-" * 20000 + b"--><![CDATA[" + b"]" * 20000 + b"]]></r>"),
+    (b"<r><![CDATA[]]]]]]]]]]]]]]]]]]]]></r>"),  # many ']' near terminator
+    (b"<r>" + b"<!--c-->" * 5000 + b"text</r>"),
+    # Newline normalization stress: lots of CR / CRLF / lone-CR runs.
+    (b"<r>" + b"\r\n" * 10000 + b"x\r\ry" + b"</r>"),
+    (b'<r a="' + b"\r\n\t " * 5000 + b'"/>'),  # attr whitespace normalization
+    # Oversized single element name / tag.
+    (b"<" + b"a" * 50000 + b">x</" + b"a" * 50000 + b">"),
 ]
 
 random.seed(20260706)

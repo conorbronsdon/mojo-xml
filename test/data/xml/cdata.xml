@@ -1,0 +1,8 @@
+<data>
+  <plain>before<![CDATA[ raw <tag> & unescaped ]]>after</plain>
+  <adjacent><![CDATA[one]]><![CDATA[two]]></adjacent>
+  <empty><![CDATA[]]></empty>
+  <special><![CDATA[a ]] b ]> c]]></special>
+  <mixed>x &amp; y<![CDATA[ then &amp; stays literal]]> and z</mixed>
+  <script><![CDATA[if (a < b && c > d) { return "<x>"; }]]></script>
+</data>

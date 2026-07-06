@@ -254,6 +254,76 @@ def normalize_encoding(var source: String) raises -> String:
     return normalize_encoding_bytes(source.as_bytes())
 
 
+def _normalize_newlines(var s: String) -> String:
+    """XML 1.0 §2.11 line-ending normalization.
+
+    Translate the two-byte sequence CR-LF and any lone CR to a single LF.
+    Applied to the whole document before tokenizing, so it covers element
+    content, CDATA sections, and attribute values uniformly (matching
+    expat/CPython). Character references such as `&#13;` are literal ASCII
+    text at this stage and survive to be decoded later, so an author who
+    wants a real CR can still get one.
+    """
+    var bytes = s.as_bytes()
+    var has_cr = False
+    for b in bytes:
+        if b == 0x0D:
+            has_cr = True
+            break
+    if not has_cr:
+        return s^
+    var out = String()
+    var i = 0
+    var n = len(bytes)
+    while i < n:
+        if bytes[i] != 0x0D:
+            var run_start = i
+            while i < n and bytes[i] != 0x0D:
+                i += 1
+            out += String(StringSlice(unsafe_from_utf8=bytes[run_start:i]))
+            continue
+        out += "\n"
+        i += 1
+        if i < n and bytes[i] == 0x0A:
+            i += 1  # collapse CR-LF into the single LF already emitted
+    return out^
+
+
+def _normalize_attr_ws(var raw: String) -> String:
+    """XML attribute-value normalization for CDATA-type attributes.
+
+    Every literal whitespace byte (tab or LF; CR has already been folded to
+    LF document-wide by `_normalize_newlines`) is replaced by a single
+    space, per the XML spec's attribute-value normalization rules. This runs
+    on the raw slice *before* entity decoding, so character references like
+    `&#9;`/`&#10;` — still literal `&#9;` text here — are preserved, again
+    matching expat/CPython. All attributes are treated as CDATA type (there
+    is no DTD to declare otherwise), so no further trimming/collapsing.
+    """
+    var bytes = raw.as_bytes()
+    var has_ws = False
+    for b in bytes:
+        if b == 0x09 or b == 0x0A:
+            has_ws = True
+            break
+    if not has_ws:
+        return raw^
+    var out = String()
+    var i = 0
+    var n = len(bytes)
+    while i < n:
+        var b = bytes[i]
+        if b != 0x09 and b != 0x0A:
+            var run_start = i
+            while i < n and bytes[i] != 0x09 and bytes[i] != 0x0A:
+                i += 1
+            out += String(StringSlice(unsafe_from_utf8=bytes[run_start:i]))
+            continue
+        out += " "
+        i += 1
+    return out^
+
+
 @fieldwise_init
 struct XmlEvent(Copyable, Movable, Writable):
     """One parse event. `attrs` is populated only for EVENT_START."""
@@ -308,7 +378,7 @@ struct XmlPullParser(Copyable, Movable):
     var _open: List[String]
 
     def __init__(out self, var source: String, *, strict: Bool = False) raises:
-        self.src = normalize_encoding(source^)
+        self.src = _normalize_newlines(normalize_encoding(source^))
         self.pos = 0
         self.strict = strict
         self._pending_end = String()
@@ -519,7 +589,7 @@ struct XmlPullParser(Copyable, Movable):
                     raise Error("mojo-xml: unterminated attribute value")
                 var raw = self._slice_to_string(vstart, self.pos)
                 self.pos += 1  # closing quote
-                attrs[name] = self._decode_entities(raw)
+                attrs[name] = self._decode_entities(_normalize_attr_ws(raw^))
             else:
                 # Attribute without a value (invalid XML, tolerated).
                 attrs[name] = String()

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+  <title type="text">Example Feed &amp; Updates</title>
+  <link href="https://example.org/" rel="alternate"/>
+  <link href="https://example.org/feed.atom" rel="self"/>
+  <updated>2026-07-06T12:00:00Z</updated>
+  <id>urn:uuid:60a76c80-d399-11d9-b93C-0003939e0af6</id>
+  <author><name>Jane Doe</name><email>jane@example.org</email></author>
+  <entry>
+    <title>First &amp; foremost</title>
+    <link href="https://example.org/1" rel="alternate"/>
+    <id>urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a</id>
+    <updated>2026-07-05T18:30:02Z</updated>
+    <summary type="text">Some text with a &lt;tag&gt;, an &amp;, and caf&#233;.</summary>
+  </entry>
+</feed>

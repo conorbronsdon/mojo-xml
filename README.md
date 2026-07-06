@@ -9,6 +9,8 @@
 [![Podcast](https://img.shields.io/badge/Podcast-Chain_of_Thought-purple?style=flat-square)](https://chainofthought.show)
 [![X](https://img.shields.io/badge/X-@ConorBronsdon-black?style=flat-square&logo=x)](https://x.com/ConorBronsdon)
 
+<img src="docs/demo.gif" alt="Demo: mojo run examples/catalog.mojo parses a catalog, queries it with the ElementTree API (find/findtext/iter), and serializes it back — 14/14 byte-match vs CPython xml.etree, 6,000-iter fuzz" width="820">
+
 </div>
 
 As of mid-2026 the Mojo ecosystem has JSON, TOML, CSV, and YAML parsers, and a
@@ -112,29 +114,36 @@ if maybe:
 ## Conformance & robustness
 
 **Byte-for-byte against CPython.** `test/anchor_run.py` parses a corpus of real
-general-XML documents (an SVG, a Maven `pom.xml`, a sitemap, a SOAP envelope,
-an Android layout, and an entity-heavy config file) two ways — with mojo-xml and
-with Python's own `xml.etree.ElementTree` — and dumps each tree in an identical
-canonical format. **All 6 match element-for-element** in strict, whitespace-exact
-mode: Clark-notation namespaces, sorted attributes, the `text`/`tail` model, and
-entity decoding are identical to CPython.
+general-XML documents (SVG, a Maven `pom.xml`, a sitemap, a SOAP envelope, an
+Android layout, an entity-heavy config, an Atom feed, an RSS/podcast feed, an
+XHTML fragment, deeply-nested mixed content with comments and PIs, a CDATA
+document, one with attributes in multiple namespaces, an empty-element-heavy
+document, and one with CRLF line endings and multi-line attribute values) two
+ways — with mojo-xml and with Python's own `xml.etree.ElementTree` — and dumps
+each tree in an identical canonical format. **All 14 match element-for-element**
+in strict, whitespace-exact mode: Clark-notation namespaces (including the
+reserved `xml:` prefix), sorted attributes, the `text`/`tail` model, XML 1.0
+line-ending and attribute-value normalization, and entity decoding are identical
+to CPython.
 
 ```bash
-pixi run test                              # 47 DOM tests + 30 pull-parser tests
+pixi run test                              # 65 DOM tests + 39 pull-parser tests
 python3 test/anchor_run.py --strip  # optional: env MOJO=<mojo binary>
 ```
 
-**Tests.** 77 total: `test/test_etree.mojo` (47 — parsing, text/tail, entities,
+**Tests.** 104 total: `test/test_etree.mojo` (65 — parsing, text/tail, entities,
 CDATA, namespaces, find/findall/findtext/iter, mutation, serialization and
-escaping, malformed-input error cases) and `test/test_pull.mojo` (30 — the
+escaping, malformed-input error cases) and `test/test_pull.mojo` (39 — the
 underlying tokenizer).
 
-**Fuzzing.** `test/fuzz_drive.py` mutates the corpus plus four adversarial
-synthetics (deep nesting, wide fan-out, a namespace bomb, and an entity flood):
-1,500 iterations with **zero crashes and zero hangs** — malformed input either
-parses or raises a clean error. Hostile input is bounded: element nesting is
-capped (`MAX_DEPTH = 512`) so a pathologically deep document raises instead of
-driving the tree-walking APIs into quadratic time.
+**Fuzzing.** `test/fuzz_drive.py` mutates the corpus plus 18 adversarial
+synthetics (deep nesting, wide fan-out, namespace bombs, entity/char-ref
+floods, malformed UTF-8, huge attribute counts, oversized tokens, and
+comment/CDATA/newline edge cases): 6,000 iterations with **zero crashes and
+zero hangs** — malformed input either parses or raises a clean error. Hostile
+input is bounded: element nesting is capped (`MAX_DEPTH = 512`) so a
+pathologically deep document raises instead of driving the tree-walking APIs
+into quadratic time.
 
 ## Design notes & limitations worth knowing
 

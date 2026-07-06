@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<doc>
+  <?render mode="fast" cache="on"?>
+  <section id="1">Intro text <emph>bold<sub>sub</sub>more</emph> after emph.
+    <para>Nested <ref target="x">link<!-- inline comment -->end</ref> tail1
+      <deep><deeper><deepest>bottom</deepest> t1</deeper> t2</deep> t3</para>
+  </section>
+  <!-- between sections -->
+  <section id="2">Second &amp; final.<?pi bare?></section>
+</doc>

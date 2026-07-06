@@ -39,7 +39,10 @@ is honored (this is proper scoped resolution, not the flat document-scoped
 approach the feed parser uses). A default namespace (`xmlns="..."`) applies
 to unprefixed *element* names but never to unprefixed *attribute* names, per
 the XML namespaces spec. `xmlns` declarations are consumed for resolution
-and are not retained in `Element.attrib`.
+and are not retained in `Element.attrib`. The reserved `xml` prefix is
+implicitly bound to `http://www.w3.org/XML/1998/namespace`, so `xml:lang`
+resolves to `{http://www.w3.org/XML/1998/namespace}lang` (and serializes
+back to `xml:lang` without a redundant declaration).
 
 ## Serialization & namespaces
 
@@ -67,6 +70,13 @@ from xml.pull import (
 # time. Rejecting pathological depth turns that denial-of-service into a clean
 # error. Generous enough to never reject real XML.
 comptime MAX_DEPTH = 512
+
+
+# The `xml` prefix is reserved and implicitly bound to this URI (Namespaces in
+# XML §3). It needs no declaration; ElementTree resolves `xml:lang` to
+# `{http://www.w3.org/XML/1998/namespace}lang`, and serializes that URI back to
+# the `xml:` prefix (never redeclaring it, which the spec forbids).
+comptime _XML_NS = "http://www.w3.org/XML/1998/namespace"
 
 
 # --------------------------------------------------------------------------
@@ -334,9 +344,11 @@ def _resolve_tag(
         if uri.byte_length() > 0:
             return "{" + uri + "}" + _substr(name, colon + 1, name.byte_length())
         if prefix == "xml":
-            # The `xml` prefix is reserved and implicitly bound; it needs no
-            # declaration and serializes back as a valid literal.
-            return name.copy()
+            # The `xml` prefix is reserved and implicitly bound; resolve it to
+            # the reserved URI in Clark notation, matching ElementTree.
+            return "{" + String(_XML_NS) + "}" + _substr(
+                name, colon + 1, name.byte_length()
+            )
         raise Error("mojo-xml: unbound namespace prefix '" + prefix + "'")
     var default_uri = _lookup_prefix(ns_frames, String())
     if default_uri.byte_length() > 0:
@@ -355,8 +367,12 @@ def _resolve_attr(
         var uri = _lookup_prefix(ns_frames, prefix)
         if uri.byte_length() > 0:
             return "{" + uri + "}" + _substr(name, colon + 1, name.byte_length())
-        if prefix != "xml":
-            raise Error("mojo-xml: unbound namespace prefix '" + prefix + "'")
+        if prefix == "xml":
+            # Reserved prefix -> reserved URI in Clark notation (ElementTree).
+            return "{" + String(_XML_NS) + "}" + _substr(
+                name, colon + 1, name.byte_length()
+            )
+        raise Error("mojo-xml: unbound namespace prefix '" + prefix + "'")
     return name.copy()
 
 
@@ -557,6 +573,10 @@ def _write_elem(
     out += _qualify(elem.tag, ns)
     if is_root:
         for entry in ns.items():
+            # The reserved xml namespace is predefined and must never be
+            # declared (Namespaces in XML §3), so skip it here.
+            if entry.key == _XML_NS:
+                continue
             out += " xmlns:" + entry.value + '="'
             out += _escape(entry.key, True) + '"'
     for entry in elem.attrib.items():
@@ -584,8 +604,14 @@ def tostring(elem: Element) raises -> String:
     var uris = List[String]()
     _collect_uris(elem, uris)
     var ns = Dict[String, String]()
+    var idx = 0
     for i in range(len(uris)):
-        ns[uris[i]] = String("ns") + String(i)
+        if uris[i] == _XML_NS:
+            # Bind the reserved URI back to its fixed `xml` prefix.
+            ns[uris[i]] = String("xml")
+        else:
+            ns[uris[i]] = String("ns") + String(idx)
+            idx += 1
     var out = String()
     _write_elem(elem, ns, True, out)
     return out^

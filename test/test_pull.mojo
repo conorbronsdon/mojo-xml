@@ -251,5 +251,66 @@ def test_unterminated_cdata_raises() raises:
         _ = parser.next_event()
 
 
+# --------------------------------------------------------------------------
+# Line-ending normalization (XML 1.0 §2.11) — CRLF and lone CR fold to LF,
+# but character references stay literal. Matches expat/CPython.
+# --------------------------------------------------------------------------
+
+
+def test_crlf_normalized_in_text() raises:
+    var events = _events("<a>x\r\ny</a>")
+    assert_equal(events[1].text, "x\ny")
+
+
+def test_lone_cr_normalized_in_text() raises:
+    var events = _events("<a>x\ry</a>")
+    assert_equal(events[1].text, "x\ny")
+
+
+def test_charref_cr_preserved() raises:
+    # &#13; is a real CR request and must survive normalization.
+    var events = _events("<a>x&#13;y</a>")
+    assert_equal(events[1].text, "x\ry")
+
+
+def test_cdata_line_endings_normalized() raises:
+    var events = _events("<a><![CDATA[x\r\ny\rz]]></a>")
+    assert_equal(events[1].text, "x\ny\nz")
+
+
+# --------------------------------------------------------------------------
+# Attribute-value whitespace normalization — literal tab/newline become a
+# single space each (no collapsing for CDATA-type attrs), char refs preserved.
+# --------------------------------------------------------------------------
+
+
+def test_attr_literal_tab_normalized() raises:
+    var events = _events("<a b=\"x\ty\"/>")
+    assert_equal(events[0].attrs["b"], "x y")
+
+
+def test_attr_literal_newline_normalized() raises:
+    var events = _events("<a b=\"x\ny\"/>")
+    assert_equal(events[0].attrs["b"], "x y")
+
+
+def test_attr_crlf_normalized_to_single_space() raises:
+    # CRLF folds to one LF (line normalization) then to one space (attr norm).
+    var events = _events("<a b=\"x\r\ny\"/>")
+    assert_equal(events[0].attrs["b"], "x y")
+
+
+def test_attr_multiple_ws_not_collapsed() raises:
+    # Each whitespace char becomes its own space; CDATA-type attrs aren't
+    # collapsed or trimmed.
+    var events = _events("<a b=\"x\n\ty\"/>")
+    assert_equal(events[0].attrs["b"], "x  y")
+
+
+def test_attr_charref_whitespace_preserved() raises:
+    var events = _events("<a b=\"x&#9;y&#10;z\"/>")
+    assert_equal(events[0].attrs["b"], "x\ty\nz")
+
+
 def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()

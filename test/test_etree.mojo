@@ -434,9 +434,14 @@ def test_unbound_prefix_attr_raises() raises:
 
 
 def test_reserved_xml_prefix_ok() raises:
-    # the `xml` prefix is implicitly bound; xml:lang needs no declaration
+    # The `xml` prefix is implicitly bound to the reserved URI; xml:lang needs
+    # no declaration and resolves to Clark notation, matching ElementTree.
     var r = fromstring("<r xml:lang='en'>hi</r>")
-    assert_equal(r.get("xml:lang"), "en")
+    assert_equal(
+        r.get("{http://www.w3.org/XML/1998/namespace}lang"), "en"
+    )
+    # The old literal key is NOT present.
+    assert_equal(r.get("xml:lang"), "")
 
 
 # --- Regression: attribute whitespace escaping matches CPython (finding #4) ---
@@ -446,6 +451,86 @@ def test_attr_whitespace_escaped() raises:
     var e = fromstring("<r a='x&#10;y&#9;z&#13;w'/>")
     # CPython _escape_attrib emits &#10; &#09; &#13; for LF/TAB/CR in attrs
     assert_equal(tostring(e), '<r a="x&#10;y&#09;z&#13;w" />')
+
+
+# --- Character-data model corners: CDATA/comments merge into one text node ---
+# CPython/expat coalesce adjacent character data (plain text, entities, and
+# CDATA) and drop comments/PIs, leaving a single merged text/tail node.
+
+
+def test_cdata_merges_with_surrounding_text() raises:
+    var root = fromstring("<a>x &amp; y<![CDATA[ then &amp; stays]]> and z</a>")
+    assert_equal(root.text, "x & y then &amp; stays and z")
+
+
+def test_comment_merges_adjacent_text() raises:
+    var root = fromstring("<a>foo<!-- c -->bar</a>")
+    assert_equal(root.text, "foobar")
+
+
+def test_comment_only_child_has_empty_text() raises:
+    var root = fromstring("<a><!-- just a comment --></a>")
+    assert_equal(root.text, "")
+    assert_equal(len(root), 0)
+
+
+def test_cdata_then_element_is_text_not_tail() raises:
+    var root = fromstring("<a><![CDATA[t]]><b/></a>")
+    assert_equal(root.text, "t")
+    assert_equal(root.children[0].tail, "")
+
+
+def test_sibling_same_prefix_different_uri() raises:
+    # Each element's own xmlns binding wins; siblings resolve independently.
+    var root = fromstring(
+        "<r><a:x xmlns:a='u1'/><a:y xmlns:a='u2'/></r>"
+    )
+    assert_equal(root.children[0].tag, "{u1}x")
+    assert_equal(root.children[1].tag, "{u2}y")
+
+
+# --- Regression: line-ending + attribute normalization reach the DOM --------
+# The corpus anchor caught these diverging from CPython; fixed in the pull
+# parser and verified here at the tree level too.
+
+
+def test_crlf_normalized_in_text_and_tail() raises:
+    var root = fromstring("<a>x\r\ny<b/>t\r\nu</a>")
+    assert_equal(root.text, "x\ny")
+    assert_equal(root.children[0].tail, "t\nu")
+
+
+def test_attr_whitespace_normalized_in_dom() raises:
+    var root = fromstring("<a b=\"x\ty\n\tz\"/>")
+    assert_equal(root.get("b"), "x y  z")
+
+
+# --- Regression: reserved xml prefix resolves to Clark notation --------------
+
+
+def test_xml_prefix_on_element() raises:
+    # An element (not just an attribute) using the xml prefix resolves too.
+    var root = fromstring("<xml:doc xml:lang='en'>hi</xml:doc>")
+    assert_equal(root.tag, "{http://www.w3.org/XML/1998/namespace}doc")
+    assert_equal(
+        root.get("{http://www.w3.org/XML/1998/namespace}lang"), "en"
+    )
+
+
+def test_xml_prefix_roundtrips_without_declaration() raises:
+    var root = fromstring("<r xml:lang='en'><c xml:space='preserve'/></r>")
+    var s = tostring(root)
+    # Serializes back to the fixed xml: prefix, never re-declaring the URI.
+    assert_true("xml:lang=\"en\"" in s)
+    assert_false("xmlns" in s)
+    var back = fromstring(s.copy())
+    assert_equal(
+        back.get("{http://www.w3.org/XML/1998/namespace}lang"), "en"
+    )
+    assert_equal(
+        back.children[0].get("{http://www.w3.org/XML/1998/namespace}space"),
+        "preserve",
+    )
 
 
 def main() raises:
