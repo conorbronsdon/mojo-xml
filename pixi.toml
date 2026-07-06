@@ -8,7 +8,7 @@ version = "0.1.0"
 
 [tasks]
 test = "mojo run -I src test/test_etree.mojo && mojo run -I src test/test_pull.mojo"
-demo = "mojo run -I src examples/parse_svg.mojo"
+demo = "mojo run -I src examples/catalog.mojo"
 
 [dependencies]
 mojo = ">=1.0.0b3.dev2026070506,<2"

@@ -60,6 +60,7 @@ that powers mojo-feed, with a proper scoped-namespace DOM layer on top.
 With [pixi](https://pixi.prefix.dev):
 
 ```bash
+pixi install
 pixi run test
 pixi run demo
 ```
@@ -127,7 +128,7 @@ line-ending and attribute-value normalization, and entity decoding are identical
 to CPython.
 
 ```bash
-pixi run test                              # 65 DOM tests + 39 pull-parser tests
+pixi run test                       # 65 DOM tests + 39 pull-parser tests
 python3 test/anchor_run.py --strip  # optional: env MOJO=<mojo binary>
 ```
 
