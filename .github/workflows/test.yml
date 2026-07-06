@@ -1,0 +1,38 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Mojo nightly
+        run: |
+          uv venv
+          uv pip install mojo \
+            --index https://whl.modular.com/nightly/simple/ \
+            --prerelease allow
+          .venv/bin/mojo --version
+
+      - name: Unit tests — ElementTree DOM
+        run: .venv/bin/mojo run -I src test/test_etree.mojo
+
+      - name: Unit tests — XML pull parser
+        run: .venv/bin/mojo run -I src test/test_pull.mojo
+
+      - name: Conformance — byte-match vs CPython xml.etree
+        run: MOJO=.venv/bin/mojo python3 test/anchor_run.py
+
+      - name: Fuzz (informational, short run)
+        run: |
+          .venv/bin/mojo build -I src test/fuzz_runner.mojo -o xml_fuzz
+          MOJO=.venv/bin/mojo python3 test/fuzz_drive.py ./xml_fuzz 300

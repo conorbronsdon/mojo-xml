@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60" viewBox="0 0 120 60">
+  <rect x="0" y="0" width="120" height="60" fill="#f0f0f0"/>
+  <text x="10" y="35" font-size="14">Hi &amp; bye</text>
+  <g opacity="0.5"><circle cx="100" cy="30" r="12"/></g>
+</svg>

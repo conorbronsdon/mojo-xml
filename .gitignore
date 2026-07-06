@@ -1,0 +1,12 @@
+.venv/
+.pixi/
+pixi.lock
+*.mojopkg
+__pycache__/
+.bench_parse
+.corpus/
+
+# builder scratch experiments
+scratch_*.mojo
+test/fuzz_case.xml
+test/fuzz_failures/

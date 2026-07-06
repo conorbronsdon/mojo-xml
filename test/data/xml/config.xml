@@ -1,0 +1,6 @@
+<config version="2">
+  <server host="localhost" port="8080"/>
+  <paths><path>/var/log</path><path>/tmp</path></paths>
+  <note>Tabs&#9;and newlines are &#10; preserved. Unicode: caf&#233;.</note>
+  <empty/>
+</config>

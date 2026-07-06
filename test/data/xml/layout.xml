@@ -1,0 +1,4 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:orientation="vertical" android:layout_width="match_parent">
+  <TextView android:id="@+id/title" android:text="Hello &lt;world&gt;" android:textSize="18sp"/>
+  <Button android:id="@+id/ok" android:text="OK"/>
+</LinearLayout>

@@ -1,0 +1,6 @@
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:m="http://example.org/stock">
+  <soap:Header/>
+  <soap:Body>
+    <m:GetPrice><m:Item>Apples</m:Item></m:GetPrice>
+  </soap:Body>
+</soap:Envelope>
