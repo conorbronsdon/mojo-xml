@@ -3,8 +3,21 @@
 Emits a flat stream of events (start element, end element, text) from a
 UTF-8 XML document held in memory. Designed for feed parsing: namespaces
 are not resolved (prefixes stay part of the element name, e.g.
-"itunes:duration"), DTDs are skipped, and the five predefined entities
-plus numeric character references are decoded in text and attributes.
+"itunes:duration"), most of the DTD is skipped, and the five predefined
+entities plus numeric character references are decoded in text and
+attributes.
+
+Numeric character references are validated against the XML 1.0 Char
+production (§2.2): a reference to NUL, another C0 control, an unpaired
+surrogate, U+FFFE/U+FFFF, or an out-of-range codepoint is rejected in
+strict mode and substituted with U+FFFD in liberal mode — such a reference
+can never inject a raw NUL (or other illegal character) into decoded output.
+
+General entity declarations in the internal DTD subset
+(`<!ENTITY name "value">`) are captured and resolved on use, matching
+CPython's `xml.etree` for self-contained documents; parameter entities
+(`<!ENTITY % ...>`) and external entities are ignored (no network/file
+access — no XXE surface).
 """
 
 comptime EVENT_START = 0
@@ -29,6 +42,44 @@ comptime _RBRACKET = UInt8(ord("]"))
 
 def _is_space(b: UInt8) -> Bool:
     return b == 0x20 or b == 0x09 or b == 0x0A or b == 0x0D
+
+
+def _is_xml_char(cp: Int) -> Bool:
+    """XML 1.0 §2.2 Char production.
+
+    Char ::= #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD]
+             | [#x10000-#x10FFFF]
+
+    A character reference resolving to anything outside this set (NUL, the
+    other C0 controls, unpaired surrogates, U+FFFE/U+FFFF, out-of-range) is
+    not a legal XML character — expat/CPython reject it, and so do we.
+    """
+    return (
+        cp == 0x9
+        or cp == 0xA
+        or cp == 0xD
+        or (cp >= 0x20 and cp <= 0xD7FF)
+        or (cp >= 0xE000 and cp <= 0xFFFD)
+        or (cp >= 0x10000 and cp <= 0x10FFFF)
+    )
+
+
+def _is_ascii_name_char(b: UInt8) -> Bool:
+    """ASCII bytes permitted anywhere in an XML Name (NameChar subset).
+
+    Multi-byte (>= 0x80) bytes are handled by the callers, which allow them
+    through so valid Unicode names are not rejected; this covers only the
+    ASCII structural characters an XML Name may contain.
+    """
+    return (
+        (b >= UInt8(ord("a")) and b <= UInt8(ord("z")))
+        or (b >= UInt8(ord("A")) and b <= UInt8(ord("Z")))
+        or (b >= UInt8(ord("0")) and b <= UInt8(ord("9")))
+        or b == UInt8(ord("-"))
+        or b == UInt8(ord("."))
+        or b == UInt8(ord("_"))
+        or b == UInt8(ord(":"))
+    )
 
 
 def _append_codepoint(mut out: String, cp_in: Int):
@@ -393,10 +444,14 @@ struct XmlPullParser(Copyable, Movable):
     """Pull events with `next_event()` until it returns EVENT_EOF.
 
     With `strict=True` the parser validates well-formedness as it goes —
-    mismatched or stray end tags, elements left open at EOF, and
-    malformed or unknown entities raise with a line/column location
-    instead of being liberally recovered. Useful for debugging a feed
-    you produce; leave it off for feeds you merely consume.
+    mismatched or stray end tags, elements left open at EOF, malformed or
+    unknown entities, invalid element/attribute names, valueless or
+    duplicate attributes, a raw `<` in an attribute value, a literal `]]>`
+    in character data, `--` inside a comment, and out-of-Char-production
+    character references all raise with a line/column location instead of
+    being liberally recovered. Useful for debugging a feed you produce;
+    leave it off for feeds you merely consume (liberal mode stays
+    deliberately tolerant of these).
     """
 
     var src: String
@@ -405,6 +460,7 @@ struct XmlPullParser(Copyable, Movable):
     var _pending_end: String
     var _has_pending_end: Bool
     var _open: List[String]
+    var _entities: Dict[String, String]
 
     def __init__(out self, var source: String, *, strict: Bool = False) raises:
         self.src = _normalize_newlines(normalize_encoding(source^))
@@ -413,6 +469,7 @@ struct XmlPullParser(Copyable, Movable):
         self._pending_end = String()
         self._has_pending_end = False
         self._open = List[String]()
+        self._entities = Dict[String, String]()
 
     def _location(self, p: Int) -> String:
         """Human-readable "line L, column C" for byte offset `p`.
@@ -562,6 +619,18 @@ struct XmlPullParser(Copyable, Movable):
                 out += String(StringSlice(unsafe_from_utf8=bytes[start:end]))
                 out += String(";")
                 return out^
+            if not _is_xml_char(cp):
+                # A well-formed reference (all digits parsed) to a codepoint
+                # outside the XML Char production: NUL, other C0 controls,
+                # surrogates, U+FFFE/U+FFFF, or out-of-range. Reject in strict
+                # mode (matching expat/CPython), substitute U+FFFD otherwise so
+                # a hostile &#0; can never inject a NUL into decoded output.
+                if self.strict:
+                    raise self._strict_error(
+                        "reference to invalid character number", self.pos
+                    )
+                _append_codepoint(out, 0xFFFD)
+                return out^
             _append_codepoint(out, cp)
             return out^
         var name = String(StringSlice(unsafe_from_utf8=bytes[start:end]))
@@ -575,6 +644,11 @@ struct XmlPullParser(Copyable, Movable):
             return String('"')
         if name == "apos":
             return String("'")
+        # General entity declared in the document's internal DTD subset
+        # (<!ENTITY name "value">). Values are decoded once at declaration
+        # time, so this is a plain lookup with no recursion risk.
+        if name in self._entities:
+            return self._entities[name].copy()
         # Unknown named entity — preserve it verbatim (liberal parsing).
         if self.strict:
             raise self._strict_error("unknown entity &" + name + ";", self.pos)
@@ -589,6 +663,36 @@ struct XmlPullParser(Copyable, Movable):
             self.pos += 1
         return self._slice_to_string(start, self.pos)
 
+    def _validate_name(self, name: String, p: Int) raises:
+        """Reject malformed element/attribute names (strict mode).
+
+        Approximates the XML Name production: the first character must be a
+        NameStartChar and the rest NameChars. Only ASCII structure is
+        enforced — any multi-byte (>= 0x80) byte is assumed to be part of a
+        valid Unicode name char, so legitimate non-ASCII names still parse.
+        This is what catches a stray `<`, quote, or space-free garbage that
+        `_read_name` would otherwise hand back as a bogus tag/attr name.
+        """
+        var bytes = name.as_bytes()
+        if len(bytes) == 0:
+            raise self._strict_error("empty name", p)
+        var f = bytes[0]
+        if f < 0x80:
+            var start_ok = (
+                (f >= UInt8(ord("a")) and f <= UInt8(ord("z")))
+                or (f >= UInt8(ord("A")) and f <= UInt8(ord("Z")))
+                or f == UInt8(ord("_"))
+                or f == UInt8(ord(":"))
+            )
+            if not start_ok:
+                raise self._strict_error("invalid name '" + name + "'", p)
+        for i in range(1, len(bytes)):
+            var b = bytes[i]
+            if b < 0x80 and not _is_ascii_name_char(b):
+                raise self._strict_error(
+                    "invalid character in name '" + name + "'", p
+                )
+
     def _read_attrs(mut self) raises -> Dict[String, String]:
         var attrs = Dict[String, String]()
         while True:
@@ -598,7 +702,14 @@ struct XmlPullParser(Copyable, Movable):
             var b = self._at(self.pos)
             if b == _GT or b == _SLASH:
                 return attrs^
+            var name_pos = self.pos
             var name = self._read_name()
+            if self.strict:
+                self._validate_name(name, name_pos)
+                if name in attrs:
+                    raise self._strict_error(
+                        "duplicate attribute '" + name + "'", name_pos
+                    )
             self._skip_space()
             if self.pos < self._len() and self._at(self.pos) == _EQUALS:
                 self.pos += 1
@@ -614,12 +725,74 @@ struct XmlPullParser(Copyable, Movable):
                     self.pos += 1
                 if self.pos >= self._len():
                     raise Error("mojo-xml: unterminated attribute value")
+                if self.strict:
+                    # A raw '<' is never allowed in an attribute value.
+                    for k in range(vstart, self.pos):
+                        if self._at(k) == _LT:
+                            raise self._strict_error(
+                                "'<' not allowed in attribute value", k
+                            )
                 var raw = self._slice_to_string(vstart, self.pos)
                 self.pos += 1  # closing quote
                 attrs[name] = self._decode_entities(_normalize_attr_ws(raw^))
+            elif self.strict:
+                raise self._strict_error(
+                    "attribute '" + name + "' has no value", name_pos
+                )
             else:
                 # Attribute without a value (invalid XML, tolerated).
                 attrs[name] = String()
+
+    def _scan_entity_decl(mut self) raises:
+        """Capture a general internal `<!ENTITY name "value">` declaration.
+
+        `self.pos` is at the `<` of `<!ENTITY`. On a captured decl, advances
+        `pos` past the value's closing quote and records the (decoded) value
+        in `self._entities`. Parameter entities (`<!ENTITY % ...>`) and
+        external ones (`... SYSTEM "..."`) are left for the caller to skip:
+        `pos` is unchanged so the caller can tell nothing was captured.
+
+        Values are decoded here, once. Because only entities declared *before*
+        this one are in scope at decode time, a self- or forward-reference
+        resolves to unknown (raising in strict mode) rather than looping —
+        there is no unbounded recursion.
+        """
+        var p = self.pos + 8  # past "<!ENTITY"
+        if p >= self._len() or not _is_space(self._at(p)):
+            return
+        while p < self._len() and _is_space(self._at(p)):
+            p += 1
+        # Parameter entity — not a general entity; leave for the outer scan.
+        if p < self._len() and self._at(p) == UInt8(ord("%")):
+            return
+        var name_start = p
+        while (
+            p < self._len()
+            and not _is_space(self._at(p))
+            and self._at(p) != _GT
+        ):
+            p += 1
+        if p <= name_start:
+            return
+        var name = self._slice_to_string(name_start, p)
+        while p < self._len() and _is_space(self._at(p)):
+            p += 1
+        if p >= self._len():
+            return
+        var q = self._at(p)
+        # No quoted literal (external SYSTEM/PUBLIC entity, or malformed):
+        # skip it — we can't resolve external content.
+        if q != _SQUOTE and q != _DQUOTE:
+            return
+        p += 1
+        var vstart = p
+        while p < self._len() and self._at(p) != q:
+            p += 1
+        if p >= self._len():
+            return
+        var raw = self._slice_to_string(vstart, p)
+        self._entities[name] = self._decode_entities(raw^)
+        self.pos = p + 1  # past the closing quote
 
     def next_event(mut self) raises -> XmlEvent:
         if self._has_pending_end:
@@ -640,6 +813,16 @@ struct XmlPullParser(Copyable, Movable):
                 var start = self.pos
                 while self.pos < self._len() and self._at(self.pos) != _LT:
                     self.pos += 1
+                if self.strict:
+                    # The literal "]]>" is forbidden in character data
+                    # (XML 1.0 §2.4) — it can only close a CDATA section.
+                    for k in range(start, self.pos):
+                        if self._at(k) == _RBRACKET and self._starts_with(
+                            k, "]]>"
+                        ):
+                            raise self._strict_error(
+                                "']]>' not allowed in character data", k
+                            )
                 var raw = self._slice_to_string(start, self.pos)
                 return XmlEvent.text_event(self._decode_entities(raw))
             # self.pos is at '<'. Dispatch on the next byte first so the
@@ -649,7 +832,18 @@ struct XmlPullParser(Copyable, Movable):
                 next_b = self._at(self.pos + 1)
             if next_b == _BANG:
                 if self._starts_with(self.pos, "<!--"):
-                    self.pos = self._find(self.pos + 4, "-->") + 3
+                    var cstart = self.pos + 4
+                    var cclose = self._find(cstart, "-->")
+                    if self.strict:
+                        # "--" may not appear inside a comment (XML 1.0 §2.5).
+                        for k in range(cstart, cclose - 1):
+                            if self._at(k) == UInt8(ord("-")) and self._at(
+                                k + 1
+                            ) == UInt8(ord("-")):
+                                raise self._strict_error(
+                                    "'--' not allowed inside a comment", k
+                                )
+                    self.pos = cclose + 3
                     continue
                 if self._starts_with(self.pos, "<![CDATA["):
                     var start = self.pos + 9
@@ -660,10 +854,32 @@ struct XmlPullParser(Copyable, Movable):
                         self._slice_to_string(start, close)
                     )
                 # DOCTYPE and friends; tolerate an internal subset [...].
+                # The scan is quote- and comment-aware so a '>' or ']' inside
+                # a quoted DTD literal (e.g. SYSTEM "a>b") or a comment does
+                # not end the declaration early, and <!ENTITY ...> general
+                # entity declarations in the internal subset are captured.
                 self.pos += 2
                 var depth = 0
+                var quote: UInt8 = 0
                 while self.pos < self._len():
                     var b = self._at(self.pos)
+                    if quote != 0:
+                        if b == quote:
+                            quote = 0
+                        self.pos += 1
+                        continue
+                    if b == _SQUOTE or b == _DQUOTE:
+                        quote = b
+                        self.pos += 1
+                        continue
+                    if self._starts_with(self.pos, "<!--"):
+                        self.pos = self._find(self.pos + 4, "-->") + 3
+                        continue
+                    if self._starts_with(self.pos, "<!ENTITY"):
+                        var before = self.pos
+                        self._scan_entity_decl()
+                        if self.pos != before:
+                            continue
                     if b == _LBRACKET:
                         depth += 1
                     elif b == _RBRACKET:
@@ -703,9 +919,12 @@ struct XmlPullParser(Copyable, Movable):
                 return XmlEvent.end(name^)
             # Start tag.
             self.pos += 1
+            var name_pos = self.pos
             var name = self._read_name()
             if name.byte_length() == 0:
                 raise Error("mojo-xml: empty element name")
+            if self.strict:
+                self._validate_name(name, name_pos)
             var attrs = self._read_attrs()
             var self_closing = False
             if self._at(self.pos) == _SLASH:

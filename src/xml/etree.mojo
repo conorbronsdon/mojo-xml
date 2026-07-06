@@ -462,7 +462,17 @@ def fromstring(var text: String) raises -> Element:
             for entry in event.attrs.items():
                 if entry.key == "xmlns" or entry.key.startswith("xmlns:"):
                     continue
-                attrib[_resolve_attr(entry.key, ns_frames)] = entry.value.copy()
+                var resolved = _resolve_attr(entry.key, ns_frames)
+                # Two distinct prefixes bound to the same URI collapse to the
+                # same Clark-notation name — a duplicate expat/CPython rejects,
+                # even though the raw prefixed names differed.
+                if resolved in attrib:
+                    raise Error(
+                        "mojo-xml: duplicate attribute after namespace"
+                        " resolution: "
+                        + resolved
+                    )
+                attrib[resolved] = entry.value.copy()
             stack.append(Element(tag^, attrib^))
 
         elif event.kind == EVENT_TEXT:
@@ -624,6 +634,9 @@ def tostring(elem: Element) raises -> String:
             idx += 1
     var out = String()
     _write_elem(elem, ns, True, out)
+    # CPython's tostring emits the top element's own tail after its end tag;
+    # for a normal root (empty tail) this appends nothing.
+    out += _escape(elem.tail, False)
     return out^
 
 

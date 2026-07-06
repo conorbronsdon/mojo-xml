@@ -344,5 +344,141 @@ def test_attr_charref_whitespace_preserved() raises:
     assert_equal(events[0].attrs["b"], "x\ty\nz")
 
 
+# --------------------------------------------------------------------------
+# Character-reference validation against the XML 1.0 Char production
+# (§2.2). Invalid references — NUL, other C0 controls, surrogates, the
+# U+FFFE/U+FFFF noncharacters, out-of-range — are rejected in strict mode
+# and substituted with U+FFFD in liberal mode (never injected verbatim).
+# --------------------------------------------------------------------------
+
+
+def test_liberal_nul_char_ref_becomes_replacement() raises:
+    # The headline: &#0; must never inject a NUL byte into decoded output.
+    var events = _events("<t>&#0;</t>")
+    assert_equal(events[1].text, "�")
+    # And specifically: no NUL byte survived.
+    for b in events[1].text.as_bytes():
+        assert_true(b != 0)
+
+
+def test_liberal_c0_control_char_ref_becomes_replacement() raises:
+    var events = _events("<t>&#8;</t>")
+    assert_equal(events[1].text, "�")
+
+
+def test_strict_nul_char_ref_raises() raises:
+    with assert_raises(contains="invalid character number"):
+        _strict_events("<t>&#0;</t>")
+
+
+def test_strict_c0_control_char_ref_raises() raises:
+    with assert_raises(contains="invalid character number"):
+        _strict_events("<t>&#8;</t>")
+
+
+def test_strict_noncharacter_ref_raises() raises:
+    with assert_raises(contains="invalid character number"):
+        _strict_events("<t>&#xFFFE;</t>")
+
+
+def test_strict_surrogate_char_ref_raises() raises:
+    with assert_raises(contains="invalid character number"):
+        _strict_events("<t>&#xD800;</t>")
+
+
+def test_strict_out_of_range_char_ref_raises() raises:
+    with assert_raises(contains="invalid character number"):
+        _strict_events("<t>&#x110000;</t>")
+
+
+def test_strict_legal_whitespace_char_refs_ok() raises:
+    # #x9, #xA, #xD are the three C0 controls the Char production allows.
+    var parser = XmlPullParser("<t>&#x9;&#xA;&#xD;A</t>", strict=True)
+    _ = parser.next_event()  # <t>
+    var text = parser.next_event()
+    assert_equal(text.text, "\t\n\rA")
+
+
+# --------------------------------------------------------------------------
+# Strict-mode well-formedness of names, attributes, comments, and content.
+# --------------------------------------------------------------------------
+
+
+def test_strict_invalid_element_name_raises() raises:
+    with assert_raises(contains="name"):
+        _strict_events("<a<b>x</a<b>")
+
+
+def test_strict_valueless_attribute_raises() raises:
+    with assert_raises(contains="no value"):
+        _strict_events("<a b>x</a>")
+
+
+def test_strict_duplicate_attribute_raises() raises:
+    with assert_raises(contains="duplicate attribute"):
+        _strict_events("<a b='1' b='2'>x</a>")
+
+
+def test_strict_raw_lt_in_attr_value_raises() raises:
+    with assert_raises(contains="'<' not allowed"):
+        _strict_events("<a b='x<y'>x</a>")
+
+
+def test_strict_cdata_close_in_content_raises() raises:
+    with assert_raises(contains="']]>' not allowed"):
+        _strict_events("<a>foo]]>bar</a>")
+
+
+def test_strict_double_dash_in_comment_raises() raises:
+    with assert_raises(contains="'--' not allowed"):
+        _strict_events("<a><!-- a--b --></a>")
+
+
+def test_liberal_still_tolerates_valueless_and_duplicate_attrs() raises:
+    # Liberal mode stays deliberately forgiving for feeds you merely consume.
+    var events = _events("<a b c='1' c='2'>x</a>")
+    assert_equal(events[0].attrs["b"], "")
+    assert_equal(events[0].attrs["c"], "2")  # last-wins, no raise
+
+
+# --------------------------------------------------------------------------
+# DOCTYPE scanning is quote- and comment-aware; internal <!ENTITY> decls
+# are captured and resolved.
+# --------------------------------------------------------------------------
+
+
+def test_doctype_quoted_gt_does_not_end_early() raises:
+    # The '>' inside the SYSTEM literal must not terminate the DOCTYPE.
+    var events = _events('<!DOCTYPE r SYSTEM "a>b"><r>x</r>')
+    assert_equal(events[0].kind, EVENT_START)
+    assert_equal(events[0].name, "r")
+    assert_equal(events[1].text, "x")
+
+
+def test_doctype_subset_bracket_in_literal_does_not_end_early() raises:
+    var events = _events('<!DOCTYPE r [ <!ENTITY x "a]b"> ]><r>y</r>')
+    assert_equal(events[0].name, "r")
+    assert_equal(events[1].text, "y")
+
+
+def test_doctype_comment_in_internal_subset_skipped() raises:
+    var events = _events("<!DOCTYPE r [ <!-- > ] --> ]><r>z</r>")
+    assert_equal(events[0].name, "r")
+    assert_equal(events[1].text, "z")
+
+
+def test_internal_entity_declaration_resolved() raises:
+    var events = _events('<!DOCTYPE r [ <!ENTITY foo "bar"> ]><r>&foo;</r>')
+    assert_equal(events[0].name, "r")
+    assert_equal(events[1].text, "bar")
+
+
+def test_internal_entity_with_charref_value() raises:
+    var events = _events(
+        '<!DOCTYPE r [ <!ENTITY foo "a &amp; b"> ]><r>&foo;</r>'
+    )
+    assert_equal(events[1].text, "a & b")
+
+
 def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
