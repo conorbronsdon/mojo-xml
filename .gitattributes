@@ -1,0 +1,4 @@
+# The conformance corpus is byte-compared against CPython xml.etree. Never let
+# git rewrite line endings — whitespace.xml carries literal CRLF on purpose to
+# exercise XML 1.0 line-ending normalization.
+test/data/xml/*.xml -text
