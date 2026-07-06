@@ -69,10 +69,38 @@ def _cp1252_codepoint(b: UInt8) -> Int:
     if c < 0x80 or c > 0x9F:
         return c
     var table: List[Int] = [
-        0x20AC, 0x81, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
-        0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x8D, 0x017D, 0x8F,
-        0x90, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
-        0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x9D, 0x017E, 0x0178,
+        0x20AC,
+        0x81,
+        0x201A,
+        0x0192,
+        0x201E,
+        0x2026,
+        0x2020,
+        0x2021,
+        0x02C6,
+        0x2030,
+        0x0160,
+        0x2039,
+        0x0152,
+        0x8D,
+        0x017D,
+        0x8F,
+        0x90,
+        0x2018,
+        0x2019,
+        0x201C,
+        0x201D,
+        0x2022,
+        0x2013,
+        0x2014,
+        0x02DC,
+        0x2122,
+        0x0161,
+        0x203A,
+        0x0153,
+        0x9D,
+        0x017E,
+        0x0178,
     ]
     return table[c - 0x80]
 
@@ -114,9 +142,7 @@ def _declared_encoding(source: String) -> String:
         return String()
     # Find the quoted value after "encoding".
     var i = enc_pos + 8
-    while i < decl_end and (
-        bytes[i] == _EQUALS or _is_space(bytes[i])
-    ):
+    while i < decl_end and (bytes[i] == _EQUALS or _is_space(bytes[i])):
         i += 1
     if i >= decl_end or (bytes[i] != _SQUOTE and bytes[i] != _DQUOTE):
         return String()
@@ -219,8 +245,11 @@ def normalize_encoding_bytes(data: Span[UInt8, _]) raises -> String:
         if data[0] == 0xFE and data[1] == 0xFF:
             return _transcode_utf16(data, little_endian=False)
     var body = data
-    if len(data) >= 3 and data[0] == 0xEF and data[1] == 0xBB and (
-        data[2] == 0xBF
+    if (
+        len(data) >= 3
+        and data[0] == 0xEF
+        and data[1] == 0xBB
+        and (data[2] == 0xBF)
     ):
         body = data[3:]
     # The declaration is ASCII, so a lossy view is safe for sniffing.
@@ -548,9 +577,7 @@ struct XmlPullParser(Copyable, Movable):
             return String("'")
         # Unknown named entity — preserve it verbatim (liberal parsing).
         if self.strict:
-            raise self._strict_error(
-                "unknown entity &" + name + ";", self.pos
-            )
+            raise self._strict_error("unknown entity &" + name + ";", self.pos)
         return String("&") + name + String(";")
 
     def _read_name(mut self) -> String:
@@ -665,8 +692,11 @@ struct XmlPullParser(Copyable, Movable):
                     var expected = self._open[len(self._open) - 1].copy()
                     if expected != name:
                         raise self._strict_error(
-                            "mismatched end tag </" + name
-                            + ">, expected </" + expected + ">",
+                            "mismatched end tag </"
+                            + name
+                            + ">, expected </"
+                            + expected
+                            + ">",
                             tag_start,
                         )
                     _ = self._open.pop()

@@ -274,7 +274,9 @@ def _split_path(path: String) -> List[String]:
     return out^
 
 
-def _collect(elem: Element, steps: List[String], i: Int, mut out: List[Element]):
+def _collect(
+    elem: Element, steps: List[String], i: Int, mut out: List[Element]
+):
     """Match `steps[i:]` as a chain of direct-child navigations."""
     if i >= len(steps):
         out.append(elem.copy())
@@ -342,12 +344,17 @@ def _resolve_tag(
         var prefix = _substr(name, 0, colon)
         var uri = _lookup_prefix(ns_frames, prefix)
         if uri.byte_length() > 0:
-            return "{" + uri + "}" + _substr(name, colon + 1, name.byte_length())
+            return (
+                "{" + uri + "}" + _substr(name, colon + 1, name.byte_length())
+            )
         if prefix == "xml":
             # The `xml` prefix is reserved and implicitly bound; resolve it to
             # the reserved URI in Clark notation, matching ElementTree.
-            return "{" + String(_XML_NS) + "}" + _substr(
-                name, colon + 1, name.byte_length()
+            return (
+                "{"
+                + String(_XML_NS)
+                + "}"
+                + _substr(name, colon + 1, name.byte_length())
             )
         raise Error("mojo-xml: unbound namespace prefix '" + prefix + "'")
     var default_uri = _lookup_prefix(ns_frames, String())
@@ -366,11 +373,16 @@ def _resolve_attr(
         var prefix = _substr(name, 0, colon)
         var uri = _lookup_prefix(ns_frames, prefix)
         if uri.byte_length() > 0:
-            return "{" + uri + "}" + _substr(name, colon + 1, name.byte_length())
+            return (
+                "{" + uri + "}" + _substr(name, colon + 1, name.byte_length())
+            )
         if prefix == "xml":
             # Reserved prefix -> reserved URI in Clark notation (ElementTree).
-            return "{" + String(_XML_NS) + "}" + _substr(
-                name, colon + 1, name.byte_length()
+            return (
+                "{"
+                + String(_XML_NS)
+                + "}"
+                + _substr(name, colon + 1, name.byte_length())
             )
         raise Error("mojo-xml: unbound namespace prefix '" + prefix + "'")
     return name.copy()
@@ -459,9 +471,7 @@ def fromstring(var text: String) raises -> Element:
                 # allowed (and ignored); anything else is junk, like leading
                 # "foo<a/>" or trailing "<a/>bar" — ElementTree raises.
                 if not _is_all_whitespace(event.text):
-                    raise Error(
-                        "mojo-xml: text outside the document element"
-                    )
+                    raise Error("mojo-xml: text outside the document element")
             else:
                 text_buf += event.text
 

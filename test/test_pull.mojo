@@ -33,7 +33,9 @@ def test_simple_element() raises:
 
 
 def test_attributes() raises:
-    var events = _events('<e url="http://x.mp3" length="42" type="audio/mpeg"/>')
+    var events = _events(
+        '<e url="http://x.mp3" length="42" type="audio/mpeg"/>'
+    )
     assert_equal(events[0].kind, EVENT_START)
     assert_equal(events[0].attrs["url"], "http://x.mp3")
     assert_equal(events[0].attrs["length"], "42")
@@ -49,7 +51,9 @@ def test_single_quoted_attribute() raises:
 
 
 def test_entities_in_text() raises:
-    var events = _events("<t>a &amp; b &lt;c&gt; &quot;d&quot; &apos;e&apos;</t>")
+    var events = _events(
+        "<t>a &amp; b &lt;c&gt; &quot;d&quot; &apos;e&apos;</t>"
+    )
     assert_equal(events[1].text, "a & b <c> \"d\" 'e'")
 
 
@@ -148,10 +152,24 @@ def test_latin1_transcoded() raises:
 def test_utf16_le_transcoded() raises:
     # UTF-16LE with BOM: <a>é</a> (é = U+00E9)
     var raw_bytes: List[UInt8] = [
-        0xFF, 0xFE,
-        0x3C, 0x00, 0x61, 0x00, 0x3E, 0x00,  # <a>
-        0xE9, 0x00,                            # é
-        0x3C, 0x00, 0x2F, 0x00, 0x61, 0x00, 0x3E, 0x00,  # </a>
+        0xFF,
+        0xFE,
+        0x3C,
+        0x00,
+        0x61,
+        0x00,
+        0x3E,
+        0x00,  # <a>
+        0xE9,
+        0x00,  # é
+        0x3C,
+        0x00,
+        0x2F,
+        0x00,
+        0x61,
+        0x00,
+        0x3E,
+        0x00,  # </a>
     ]
     var parser_input = String(StringSlice(unsafe_from_utf8=Span(raw_bytes)))
     var events = _events(parser_input^)
@@ -162,10 +180,24 @@ def test_utf16_le_transcoded() raises:
 def test_utf16_be_transcoded() raises:
     # UTF-16BE with BOM: <a>x</a>
     var raw_bytes: List[UInt8] = [
-        0xFE, 0xFF,
-        0x00, 0x3C, 0x00, 0x61, 0x00, 0x3E,
-        0x00, 0x78,
-        0x00, 0x3C, 0x00, 0x2F, 0x00, 0x61, 0x00, 0x3E,
+        0xFE,
+        0xFF,
+        0x00,
+        0x3C,
+        0x00,
+        0x61,
+        0x00,
+        0x3E,
+        0x00,
+        0x78,
+        0x00,
+        0x3C,
+        0x00,
+        0x2F,
+        0x00,
+        0x61,
+        0x00,
+        0x3E,
     ]
     var parser_input = String(StringSlice(unsafe_from_utf8=Span(raw_bytes)))
     var events = _events(parser_input^)
@@ -285,30 +317,30 @@ def test_cdata_line_endings_normalized() raises:
 
 
 def test_attr_literal_tab_normalized() raises:
-    var events = _events("<a b=\"x\ty\"/>")
+    var events = _events('<a b="x\ty"/>')
     assert_equal(events[0].attrs["b"], "x y")
 
 
 def test_attr_literal_newline_normalized() raises:
-    var events = _events("<a b=\"x\ny\"/>")
+    var events = _events('<a b="x\ny"/>')
     assert_equal(events[0].attrs["b"], "x y")
 
 
 def test_attr_crlf_normalized_to_single_space() raises:
     # CRLF folds to one LF (line normalization) then to one space (attr norm).
-    var events = _events("<a b=\"x\r\ny\"/>")
+    var events = _events('<a b="x\r\ny"/>')
     assert_equal(events[0].attrs["b"], "x y")
 
 
 def test_attr_multiple_ws_not_collapsed() raises:
     # Each whitespace char becomes its own space; CDATA-type attrs aren't
     # collapsed or trimmed.
-    var events = _events("<a b=\"x\n\ty\"/>")
+    var events = _events('<a b="x\n\ty"/>')
     assert_equal(events[0].attrs["b"], "x  y")
 
 
 def test_attr_charref_whitespace_preserved() raises:
-    var events = _events("<a b=\"x&#9;y&#10;z\"/>")
+    var events = _events('<a b="x&#9;y&#10;z"/>')
     assert_equal(events[0].attrs["b"], "x\ty\nz")
 
 

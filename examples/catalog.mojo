@@ -8,10 +8,10 @@ from xml import fromstring, tostring, Element, SubElement
 def main() raises:
     var doc = fromstring(
         String(
-            "<catalog>"
-            "<book id='b1'><title>Mojo in Practice</title><author>Modular</author></book>"
-            "<book id='b2'><title>Systems Mojo</title><author>Corner</author></book>"
-            "</catalog>"
+            "<catalog><book id='b1'><title>Mojo in"
+            " Practice</title><author>Modular</author></book><book"
+            " id='b2'><title>Systems"
+            " Mojo</title><author>Corner</author></book></catalog>"
         )
     )
 

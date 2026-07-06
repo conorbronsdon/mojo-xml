@@ -1,4 +1,10 @@
-from std.testing import assert_equal, assert_true, assert_false, assert_raises, TestSuite
+from std.testing import (
+    assert_equal,
+    assert_true,
+    assert_false,
+    assert_raises,
+    TestSuite,
+)
 
 from xml.etree import Element, fromstring, tostring, SubElement
 
@@ -72,14 +78,14 @@ def test_self_closing_has_empty_text() raises:
 
 def test_text_vs_tail() raises:
     var root = fromstring("<a>t0<b>hi</b>t1<c/>t2</a>")
-    assert_equal(root.text, "t0")            # before first child
+    assert_equal(root.text, "t0")  # before first child
     assert_equal(root.children[0].tag, "b")
     assert_equal(root.children[0].text, "hi")
     assert_equal(root.children[0].tail, "t1")  # after </b>
     assert_equal(root.children[1].tag, "c")
     assert_equal(root.children[1].text, "")
     assert_equal(root.children[1].tail, "t2")  # after <c/>
-    assert_equal(root.tail, "")                # root has no tail
+    assert_equal(root.tail, "")  # root has no tail
 
 
 def test_text_before_first_child_only() raises:
@@ -94,8 +100,8 @@ def test_deep_tail() raises:
     var root = fromstring("<a><b><c/>x</b>y</a>")
     var b = root.children[0].copy()
     assert_equal(b.tag, "b")
-    assert_equal(b.children[0].tail, "x")   # after <c/>, inside b
-    assert_equal(b.tail, "y")               # after </b>, inside a
+    assert_equal(b.children[0].tail, "x")  # after <c/>, inside b
+    assert_equal(b.tail, "y")  # after </b>, inside a
 
 
 def test_whitespace_preserved() raises:
@@ -111,7 +117,7 @@ def test_whitespace_preserved() raises:
 
 def test_entity_decoding() raises:
     var root = fromstring("<t>a &amp; b &lt;c&gt; &quot;d&quot;</t>")
-    assert_equal(root.text, "a & b <c> \"d\"")
+    assert_equal(root.text, 'a & b <c> "d"')
 
 
 def test_numeric_entity() raises:
@@ -151,8 +157,8 @@ def test_default_namespace_not_on_attrs() raises:
     # Default ns applies to element names but not unprefixed attributes.
     var root = fromstring("<foo xmlns='http://d' a='1'/>")
     assert_equal(root.tag, "{http://d}foo")
-    assert_equal(root.get("a"), "1")            # attrib key stays "a"
-    assert_equal(root.get("{http://d}a"), "")   # NOT namespaced
+    assert_equal(root.get("a"), "1")  # attrib key stays "a"
+    assert_equal(root.get("{http://d}a"), "")  # NOT namespaced
 
 
 def test_prefixed_attribute() raises:
@@ -170,9 +176,7 @@ def test_xmlns_not_kept_in_attrib() raises:
 def test_nested_namespace_scoping() raises:
     # Inner element rebinds prefix p; each resolves to its own scope.
     var doc: String = (
-        "<p:a xmlns:p='http://one'>"
-        "<p:b xmlns:p='http://two'/>"
-        "</p:a>"
+        "<p:a xmlns:p='http://one'><p:b xmlns:p='http://two'/></p:a>"
     )
     var root = fromstring(doc^)
     assert_equal(root.tag, "{http://one}a")
@@ -221,7 +225,9 @@ def test_wildcard_path() raises:
 
 
 def test_descendant() raises:
-    var root = fromstring("<a><b><t>1</t></b><t>2</t><c><d><t>3</t></d></c></a>")
+    var root = fromstring(
+        "<a><b><t>1</t></b><t>2</t><c><d><t>3</t></d></c></a>"
+    )
     var ts = root.findall(".//t")
     assert_equal(len(ts), 3)
 
@@ -303,8 +309,8 @@ def test_append_child() raises:
 def test_subelement() raises:
     var e = Element(String("root"))
     var kid = SubElement(e, String("kid"))
-    assert_equal(kid.tag, "kid")          # returned snapshot
-    assert_equal(len(e), 1)                # and appended to parent
+    assert_equal(kid.tag, "kid")  # returned snapshot
+    assert_equal(len(e), 1)  # and appended to parent
     assert_equal(e.children[0].tag, "kid")
 
 
@@ -437,9 +443,7 @@ def test_reserved_xml_prefix_ok() raises:
     # The `xml` prefix is implicitly bound to the reserved URI; xml:lang needs
     # no declaration and resolves to Clark notation, matching ElementTree.
     var r = fromstring("<r xml:lang='en'>hi</r>")
-    assert_equal(
-        r.get("{http://www.w3.org/XML/1998/namespace}lang"), "en"
-    )
+    assert_equal(r.get("{http://www.w3.org/XML/1998/namespace}lang"), "en")
     # The old literal key is NOT present.
     assert_equal(r.get("xml:lang"), "")
 
@@ -482,9 +486,7 @@ def test_cdata_then_element_is_text_not_tail() raises:
 
 def test_sibling_same_prefix_different_uri() raises:
     # Each element's own xmlns binding wins; siblings resolve independently.
-    var root = fromstring(
-        "<r><a:x xmlns:a='u1'/><a:y xmlns:a='u2'/></r>"
-    )
+    var root = fromstring("<r><a:x xmlns:a='u1'/><a:y xmlns:a='u2'/></r>")
     assert_equal(root.children[0].tag, "{u1}x")
     assert_equal(root.children[1].tag, "{u2}y")
 
@@ -501,7 +503,7 @@ def test_crlf_normalized_in_text_and_tail() raises:
 
 
 def test_attr_whitespace_normalized_in_dom() raises:
-    var root = fromstring("<a b=\"x\ty\n\tz\"/>")
+    var root = fromstring('<a b="x\ty\n\tz"/>')
     assert_equal(root.get("b"), "x y  z")
 
 
@@ -512,21 +514,17 @@ def test_xml_prefix_on_element() raises:
     # An element (not just an attribute) using the xml prefix resolves too.
     var root = fromstring("<xml:doc xml:lang='en'>hi</xml:doc>")
     assert_equal(root.tag, "{http://www.w3.org/XML/1998/namespace}doc")
-    assert_equal(
-        root.get("{http://www.w3.org/XML/1998/namespace}lang"), "en"
-    )
+    assert_equal(root.get("{http://www.w3.org/XML/1998/namespace}lang"), "en")
 
 
 def test_xml_prefix_roundtrips_without_declaration() raises:
     var root = fromstring("<r xml:lang='en'><c xml:space='preserve'/></r>")
     var s = tostring(root)
     # Serializes back to the fixed xml: prefix, never re-declaring the URI.
-    assert_true("xml:lang=\"en\"" in s)
+    assert_true('xml:lang="en"' in s)
     assert_false("xmlns" in s)
     var back = fromstring(s.copy())
-    assert_equal(
-        back.get("{http://www.w3.org/XML/1998/namespace}lang"), "en"
-    )
+    assert_equal(back.get("{http://www.w3.org/XML/1998/namespace}lang"), "en")
     assert_equal(
         back.children[0].get("{http://www.w3.org/XML/1998/namespace}space"),
         "preserve",
