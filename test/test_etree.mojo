@@ -531,5 +531,64 @@ def test_xml_prefix_roundtrips_without_declaration() raises:
     )
 
 
+# --------------------------------------------------------------------------
+# Hardening regressions: tail serialization, char-ref/name/attr validation,
+# quote-aware DOCTYPE, and internal entity resolution — checked against
+# CPython xml.etree behavior.
+# --------------------------------------------------------------------------
+
+
+def test_tostring_emits_top_element_tail() raises:
+    # CPython's tostring appends the top element's own tail after its end tag.
+    var e = Element(String("e"))
+    e.tail = String("MYTAIL")
+    assert_equal(tostring(e), "<e />MYTAIL")
+
+
+def test_tostring_escapes_top_element_tail() raises:
+    var e = Element(String("e"))
+    e.text = String("hi")
+    e.tail = String("a < b")
+    assert_equal(tostring(e), "<e>hi</e>a &lt; b")
+
+
+def test_fromstring_nul_char_ref_raises() raises:
+    with assert_raises(contains="invalid character number"):
+        _ = fromstring("<r>&#0;</r>")
+
+
+def test_fromstring_surrogate_char_ref_raises() raises:
+    with assert_raises(contains="invalid character number"):
+        _ = fromstring("<r>&#xD800;</r>")
+
+
+def test_fromstring_invalid_element_name_raises() raises:
+    with assert_raises(contains="name"):
+        _ = fromstring("<a<b>x</a<b>")
+
+
+def test_fromstring_duplicate_attribute_raises() raises:
+    with assert_raises(contains="duplicate attribute"):
+        _ = fromstring("<a b='1' b='2'/>")
+
+
+def test_fromstring_ns_expanded_duplicate_attribute_raises() raises:
+    # Two prefixes bound to the same URI collapse to one Clark name.
+    with assert_raises(contains="duplicate attribute"):
+        _ = fromstring('<a xmlns:p="u" xmlns:q="u" p:x="1" q:x="2"/>')
+
+
+def test_fromstring_doctype_quoted_gt_parses() raises:
+    var root = fromstring('<!DOCTYPE r SYSTEM "a>b"><r>x</r>')
+    assert_equal(root.tag, "r")
+    assert_equal(root.text, "x")
+
+
+def test_fromstring_internal_entity_resolved() raises:
+    var root = fromstring('<!DOCTYPE r [ <!ENTITY foo "bar"> ]><r>&foo;</r>')
+    assert_equal(root.tag, "r")
+    assert_equal(root.text, "bar")
+
+
 def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
