@@ -20,6 +20,20 @@ into a tree of `Element`s and walk it with the API Python developers already
 know from `xml.etree.ElementTree`. It's built on the same fuzzed pull parser
 that powers mojo-feed, with a proper scoped-namespace DOM layer on top.
 
+### Coming from Python
+
+If you know Python's `xml.etree.ElementTree`, the API is nearly 1:1:
+
+| Python (`xml.etree.ElementTree`)   | mojo-xml                          |
+| ---------------------------------- | --------------------------------- |
+| `root = ET.fromstring(xml)`        | `var root = fromstring(xml)`      |
+| `root.findall("book")`             | `root.findall("book")`            |
+| `el.get("id")`                     | `el.get("id")`                    |
+| `el.findtext("title")`             | `el.findtext("title")`            |
+| `root.iter("title")`               | `root.iter("title")`              |
+| `ET.tostring(el)`                  | `tostring(el)`                    |
+| `ET.SubElement(parent, "tag")`     | `SubElement(parent, "tag")`       |
+
 ## What it does
 
 - **Parse to a tree**: `fromstring(text)` returns the root `Element`; every
@@ -162,7 +176,7 @@ into quadratic time.
 
 ## Part of a pure-Mojo library suite
 
-Pure-Mojo libraries that mirror familiar Python stdlib and PyPI APIs, filling
+Eleven pure-Mojo libraries that mirror familiar Python stdlib and PyPI APIs, filling
 gaps in the native Mojo ecosystem:
 
 - [mojo-feed](https://github.com/conorbronsdon/mojo-feed) — RSS/Atom/JSON Feed
