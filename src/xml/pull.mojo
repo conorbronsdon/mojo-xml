@@ -39,6 +39,16 @@ comptime _HASH = UInt8(ord("#"))
 comptime _LBRACKET = UInt8(ord("["))
 comptime _RBRACKET = UInt8(ord("]"))
 
+# Entity-expansion DoS guard ("billion laughs"). A single decode pass may
+# amplify its input by at most _MAX_ENTITY_AMPLIFICATION-fold once its output
+# crosses _ENTITY_EXPANSION_THRESHOLD bytes; beyond that we raise instead of
+# materializing unbounded output. This mirrors expat's amplification defaults
+# (100x factor, 8 MiB activation threshold): benign expansions — even large
+# non-amplified text — pass untouched, while nested self-referential entity
+# declarations (each level 10x the last) trip the guard before they can OOM.
+comptime _MAX_ENTITY_AMPLIFICATION = 100
+comptime _ENTITY_EXPANSION_THRESHOLD = 8 * 1024 * 1024
+
 
 def _is_space(b: UInt8) -> Bool:
     return b == 0x20 or b == 0x09 or b == 0x0A or b == 0x0D
@@ -543,6 +553,7 @@ struct XmlPullParser(Copyable, Movable):
         if not has_amp:
             return raw^
         var bytes = raw.as_bytes()
+        var raw_len = len(bytes)
         var out = String()
         var i = 0
         while i < len(bytes):
@@ -574,6 +585,19 @@ struct XmlPullParser(Copyable, Movable):
             var entity = self._entity_body(raw, i + 1, semi)
             out += entity
             i = semi + 1
+            # Billion-laughs guard: general entities are stored already-decoded,
+            # so a chain of nested declarations expands 10x per level at parse
+            # time. Cap the amplification of this pass before the output can be
+            # materialized into memory (or re-materialized in the body).
+            var out_len = out.byte_length()
+            if (
+                out_len > _ENTITY_EXPANSION_THRESHOLD
+                and out_len > raw_len * _MAX_ENTITY_AMPLIFICATION
+            ):
+                raise Error(
+                    "mojo-xml: entity expansion exceeds limit (possible"
+                    " billion-laughs attack); refusing to expand"
+                )
         return out^
 
     def _entity_body(self, raw: String, start: Int, end: Int) raises -> String:

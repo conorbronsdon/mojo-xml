@@ -480,5 +480,36 @@ def test_internal_entity_with_charref_value() raises:
     assert_equal(events[1].text, "a & b")
 
 
+def _entity_refs(name: String, n: Int) -> String:
+    # `n` copies of "&name;" — the value literal for one nesting level.
+    var s = String()
+    for _ in range(n):
+        s += "&" + name + ";"
+    return s^
+
+
+def test_billion_laughs_entity_expansion_raises() raises:
+    # Classic "billion laughs": each entity references the previous one ten
+    # times. Because general entities are stored already-decoded, a deep level
+    # would expand exponentially at parse time (level 9 ~= 1 GB) and OOM. The
+    # amplification guard must reject it by raising, and must do so *early*
+    # (while decoding a mid-level declaration) so this test completes fast
+    # rather than actually materializing the payload.
+    var levels = ["a", "b", "c", "d", "e", "f", "g", "h", "i"]
+    var doc = String('<!DOCTYPE r [ <!ENTITY a "AAAAAAAAAA">')
+    for k in range(1, len(levels)):
+        var refs = _entity_refs(levels[k - 1], 10)
+        doc += "<!ENTITY " + levels[k] + ' "' + refs + '">'
+    doc += " ]><r>&i;</r>"
+    with assert_raises(contains="billion-laughs"):
+        _ = _events(doc^)
+
+
+def test_benign_entity_still_resolves_after_guard() raises:
+    # The guard must not disturb ordinary, non-amplifying entity resolution.
+    var events = _events('<!DOCTYPE r [ <!ENTITY foo "bar baz"> ]><r>&foo;</r>')
+    assert_equal(events[1].text, "bar baz")
+
+
 def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
