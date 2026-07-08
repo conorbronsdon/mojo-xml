@@ -262,7 +262,7 @@ def test_strict_bare_ampersand() raises:
 
 
 def test_strict_error_reports_location() raises:
-    with assert_raises(contains="line 3"):
+    with assert_raises(contains="at line 3, column 2"):
         _strict_events("<a>\n<b>\nx</a>\n</b>")
 
 

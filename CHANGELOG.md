@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- New `xml.errors` module (exported from the package): `line_col(source,
+  offset)` maps a byte offset to a 1-based (line, column) pair — the column
+  is the 1-based BYTE offset within the line, no UTF-8 decoding — and
+  `parse_error(msg, source, offset)` builds an `Error` reading
+  `<msg> at line <L>, column <C>: '<snippet>'`, where the snippet is up to
+  ~30 bytes of the offending line centered on the column,
+  whitespace-trimmed, with `...` where truncated, and never multi-line.
+- Pull-parser errors now carry that position + snippet wherever a byte
+  offset exists at the raise site: every strict-mode error (previously a
+  bare `(line L, column C)` suffix with no snippet) and the structural
+  errors both modes raise — unterminated constructs / start tags /
+  attributes / attribute values, unquoted attribute values, malformed
+  start/end tags, and empty element names (previously no position at all).
+- No mechanism change: parsers still `raise Error(...)`, no new error
+  types, and existing `contains=`-style message checks keep matching.
+
 ## v0.1.0 — 2026-07-06
 
 First release. General-purpose XML parsing in pure Mojo, mirroring Python's

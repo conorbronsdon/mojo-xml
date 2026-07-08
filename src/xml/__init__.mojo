@@ -16,3 +16,7 @@ from xml.etree import (
     tostring,
     SubElement,
 )
+from xml.errors import (
+    line_col,
+    parse_error,
+)
