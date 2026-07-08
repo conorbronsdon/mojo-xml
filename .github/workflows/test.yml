@@ -34,6 +34,9 @@ jobs:
       - name: Unit tests — XML pull parser
         run: .venv/bin/mojo run -I src test/test_pull.mojo
 
+      - name: Unit tests — parse-error positions
+        run: .venv/bin/mojo run -I src test/test_errors.mojo
+
       - name: Conformance — byte-match vs CPython xml.etree
         run: MOJO=.venv/bin/mojo python3 test/anchor_run.py
 
