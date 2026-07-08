@@ -711,12 +711,12 @@ struct XmlPullParser(Copyable, Movable):
                     "invalid character in name '" + name + "'", p
                 )
 
-    def _read_attrs(mut self) raises -> Dict[String, String]:
+    def _read_attrs(mut self, tag_start: Int) raises -> Dict[String, String]:
         var attrs = Dict[String, String]()
         while True:
             self._skip_space()
             if self.pos >= self._len():
-                raise self._error("unterminated start tag", self.pos)
+                raise self._error("unterminated start tag", tag_start)
             var b = self._at(self.pos)
             if b == _GT or b == _SLASH:
                 return attrs^
@@ -946,7 +946,7 @@ struct XmlPullParser(Copyable, Movable):
                 raise self._error("empty element name", name_pos)
             if self.strict:
                 self._validate_name(name, name_pos)
-            var attrs = self._read_attrs()
+            var attrs = self._read_attrs(name_pos - 1)
             var self_closing = False
             if self._at(self.pos) == _SLASH:
                 self_closing = True

@@ -272,7 +272,13 @@ def test_strict_self_closing_ok() raises:
 
 def test_unterminated_tag_raises() raises:
     var parser = XmlPullParser("<a href=")
-    with assert_raises():
+    with assert_raises(contains="unterminated attribute at line 1, column 4"):
+        _ = parser.next_event()
+
+
+def test_unterminated_start_tag_position() raises:
+    var parser = XmlPullParser("<a ")
+    with assert_raises(contains="unterminated start tag at line 1, column 1"):
         _ = parser.next_event()
 
 
