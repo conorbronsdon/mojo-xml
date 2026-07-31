@@ -15,7 +15,8 @@ from xml import fromstring, Element
 def _esc(s_in: String, strip: Bool) -> String:
     var s = s_in
     if strip:
-        s = String(s.strip())
+        var stripped = String(s.strip())
+        s = stripped^
     # order matters: backslash first
     var out = String()
     for ch in s.codepoint_slices():
