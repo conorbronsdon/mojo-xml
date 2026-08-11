@@ -5,7 +5,7 @@
 **General-purpose XML parsing in pure Mojo — an `xml.etree.ElementTree`-shaped API. No Python dependencies, no FFI.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Mojo](https://img.shields.io/badge/Mojo-1.0.0b3%2B_nightly-orange?style=flat-square)](https://mojolang.org)
+[![Mojo](https://img.shields.io/badge/Mojo-1.0-orange?style=flat-square)](https://mojolang.org)
 [![Podcast](https://img.shields.io/badge/Podcast-Chain_of_Thought-purple?style=flat-square)](https://chainofthought.show/?utm_source=github&utm_medium=referral&utm_campaign=repo-readme&utm_content=mojo-xml)
 [![X](https://img.shields.io/badge/X-@ConorBronsdon-black?style=flat-square&logo=x)](https://x.com/ConorBronsdon)
 
@@ -83,11 +83,11 @@ Or with uv:
 
 ```bash
 uv venv
-uv pip install mojo --index https://whl.modular.com/nightly/simple/ --prerelease allow
+uv pip install mojo
 .venv/bin/mojo run -I src test/test_etree.mojo
 ```
 
-Requires a Mojo nightly (`>=1.0.0b3`).
+Requires Mojo 1.0 or newer.
 
 ## Usage
 
@@ -142,14 +142,15 @@ line-ending and attribute-value normalization, and entity decoding are identical
 to CPython.
 
 ```bash
-pixi run test                       # 65 DOM tests + 39 pull-parser tests
+pixi run test                       # 74 DOM + 62 pull-parser + 23 error tests
 python3 test/anchor_run.py --strip  # optional: env MOJO=<mojo binary>
 ```
 
-**Tests.** 104 total: `test/test_etree.mojo` (65 — parsing, text/tail, entities,
+**Tests.** 159 total: `test/test_etree.mojo` (74 — parsing, text/tail, entities,
 CDATA, namespaces, find/findall/findtext/iter, mutation, serialization and
-escaping, malformed-input error cases) and `test/test_pull.mojo` (39 — the
-underlying tokenizer).
+escaping, malformed-input error cases), `test/test_pull.mojo` (62 — the
+underlying tokenizer), and `test/test_errors.mojo` (23 — parse-error
+positions).
 
 **Fuzzing.** `test/fuzz_drive.py` mutates the corpus plus 18 adversarial
 synthetics (deep nesting, wide fan-out, namespace bombs, entity/char-ref
