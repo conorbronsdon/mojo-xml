@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-08-11
+
+- **Builds on released Mojo 1.0.** The pixi channel moved from
+  `max-nightly` to `max` and the dependency pin from `>=1.0.0b3.dev…` to
+  `>=1.0,<2`; CI installs `mojo==1.0.0` from PyPI instead of the nightly
+  index with `--prerelease allow`. The weekly drift check still runs
+  against the latest nightly, so the repo still reports when the language
+  moves under it. No source changes were needed.
+- README test counts corrected: 104 → 159 (74 DOM, 62 pull-parser, 23
+  error-position). The 14-document byte-match anchor against CPython
+  `xml.etree` and the 6,000-iteration fuzz both re-run clean.
 
 - New `xml.errors` module (exported from the package): `line_col(source,
   offset)` maps a byte offset to a 1-based (line, column) pair — the column
